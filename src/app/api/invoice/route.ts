@@ -64,6 +64,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const invoice = await req.json();
+    
     console.log("invoice", invoice);
     validateInvoice(invoice);
 

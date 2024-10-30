@@ -9,7 +9,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-// import { toast } from '@/components/ui/use-toast'
 import { useToast } from '@/hooks/use-toast'
 
 const itemSchema = z.object({
@@ -46,10 +45,9 @@ const invoiceSchema = z.object({
 type InvoiceFormData = z.infer<typeof invoiceSchema>
 
 export default function InvoiceDetail({ params }: { params: { id: string } }) {
-    const{toast} = useToast();
   const router = useRouter()
   const [isCreateMode, setIsCreateMode] = useState(params.id === 'new')
-
+    const {toast} = useToast();
   const { register, control, handleSubmit, setValue, watch, formState: { errors } } = useForm<InvoiceFormData>({
     resolver: zodResolver(invoiceSchema),
     defaultValues: {
@@ -91,6 +89,30 @@ export default function InvoiceDetail({ params }: { params: { id: string } }) {
       title: 'Invoice Saved',
       description: `Invoice ${data.InvoiceNumber} has been saved successfully.`,
     })
+    fetch('/api/invoice', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+    })
+        .then((response) => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then((responseData) => {
+            console.log('Success:', responseData);
+        })
+        .catch((error) => {
+            console.error('Error:', error);
+            toast({
+                title: 'Error',
+                description: 'There was an error saving the invoice.',
+                variant:"destructive"
+            });
+        });
     router.push('/invoices')
   }
 
@@ -104,14 +126,15 @@ export default function InvoiceDetail({ params }: { params: { id: string } }) {
   }
 
   return (
+    <div className="container mx-auto py-10">
     <form onSubmit={handleSubmit(onSubmit)}>
-      <Card>
+      <Card className="w-full max-w-4xl mx-auto">
         <CardHeader>
           <CardTitle>{isCreateMode ? 'Create Invoice' : 'Update Invoice'}</CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
               <Label htmlFor="Date">Date</Label>
               <Input
                 id="Date"
@@ -119,37 +142,37 @@ export default function InvoiceDetail({ params }: { params: { id: string } }) {
                 {...register('Date')}
                 min={new Date().toISOString().split('T')[0]}
               />
-              {errors.Date && <p className="text-red-500">{errors.Date.message}</p>}
+              {errors.Date && <p className="text-sm text-red-500">{errors.Date.message}</p>}
             </div>
-            <div>
+            <div className="space-y-2">
               <Label htmlFor="InvoiceNumber">Invoice Number</Label>
-              <Input id="InvoiceNumber" type="number" {...register('InvoiceNumber', { valueAsNumber: true })} readOnly />
+              <Input id="InvoiceNumber" type="number" {...register('InvoiceNumber', { valueAsNumber: true })} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="CustomerName">Customer Name</Label>
+              <Input id="CustomerName" {...register('CustomerName')} />
+              {errors.CustomerName && <p className="text-sm text-red-500">{errors.CustomerName.message}</p>}
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="GSTIN">GSTIN</Label>
+              <Input id="GSTIN" {...register('GSTIN')} />
+              {errors.GSTIN && <p className="text-sm text-red-500">{errors.GSTIN.message}</p>}
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="BillingAddress">Billing Address</Label>
+              <Input id="BillingAddress" {...register('BillingAddress')} />
+              {errors.BillingAddress && <p className="text-sm text-red-500">{errors.BillingAddress.message}</p>}
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label htmlFor="ShippingAddress">Shipping Address</Label>
+              <Input id="ShippingAddress" {...register('ShippingAddress')} />
+              {errors.ShippingAddress && <p className="text-sm text-red-500">{errors.ShippingAddress.message}</p>}
             </div>
           </div>
-          <div>
-            <Label htmlFor="CustomerName">Customer Name</Label>
-            <Input id="CustomerName" {...register('CustomerName')} />
-            {errors.CustomerName && <p className="text-red-500">{errors.CustomerName.message}</p>}
-          </div>
-          <div>
-            <Label htmlFor="BillingAddress">Billing Address</Label>
-            <Input id="BillingAddress" {...register('BillingAddress')} />
-            {errors.BillingAddress && <p className="text-red-500">{errors.BillingAddress.message}</p>}
-          </div>
-          <div>
-            <Label htmlFor="ShippingAddress">Shipping Address</Label>
-            <Input id="ShippingAddress" {...register('ShippingAddress')} />
-            {errors.ShippingAddress && <p className="text-red-500">{errors.ShippingAddress.message}</p>}
-          </div>
-          <div>
-            <Label htmlFor="GSTIN">GSTIN</Label>
-            <Input id="GSTIN" {...register('GSTIN')} />
-            {errors.GSTIN && <p className="text-red-500">{errors.GSTIN.message}</p>}
-          </div>
-          <div>
+          <div className="space-y-4 mt-6">
             <Label>Items</Label>
             {itemFields.map((field, index) => (
-              <div key={field.id} className="flex space-x-2 mb-2">
+              <div key={field.id} className="grid grid-cols-5 gap-2 items-center">
                 <Input {...register(`Items.${index}.itemName`)} placeholder="Item Name" />
                 <Input {...register(`Items.${index}.quantity`, { valueAsNumber: true })} placeholder="Quantity" type="number" min="1" />
                 <Input {...register(`Items.${index}.price`, { valueAsNumber: true })} placeholder="Price" type="number" min="0.01" step="0.01" />
@@ -159,10 +182,10 @@ export default function InvoiceDetail({ params }: { params: { id: string } }) {
             ))}
             <Button type="button" onClick={() => appendItem({ Id: '', itemName: '', quantity: 1, price: 0, amount: 0 })}>Add Item</Button>
           </div>
-          <div>
+          <div className="space-y-4 mt-6">
             <Label>Bill Sundrys</Label>
             {billSundryFields.map((field, index) => (
-              <div key={field.id} className="flex space-x-2 mb-2">
+              <div key={field.id} className="grid grid-cols-3 gap-2 items-center">
                 <Input {...register(`BillSundrys.${index}.billSundryName`)} placeholder="Bill Sundry Name" />
                 <Input {...register(`BillSundrys.${index}.amount`)} placeholder="Amount" type="number" step="0.01" />
                 <Button type="button" variant="destructive" onClick={() => removeBillSundry(index)}>Remove</Button>
@@ -170,9 +193,9 @@ export default function InvoiceDetail({ params }: { params: { id: string } }) {
             ))}
             <Button type="button" onClick={() => appendBillSundry({ Id: '', billSundryName: '', amount: '0' })}>Add Bill Sundry</Button>
           </div>
-          <div>
+          <div className="mt-6 space-y-2">
             <Label htmlFor="TotalAmount">Total Amount</Label>
-            <Input id="TotalAmount" {...register('TotalAmount', { valueAsNumber: true })} readOnly />
+            <Input id="TotalAmount" {...register('TotalAmount', { valueAsNumber: true })} readOnly className="font-bold" />
           </div>
         </CardContent>
         <CardFooter className="flex justify-between">
@@ -184,7 +207,8 @@ export default function InvoiceDetail({ params }: { params: { id: string } }) {
             <Button type="submit">Save</Button>
           </div>
         </CardFooter>
-        </Card>
-        </form>
-        )
-        }
+      </Card>
+    </form>
+    </div>
+  )
+}
