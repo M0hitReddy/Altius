@@ -1,214 +1,438 @@
-'use client'
+"use client";
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { useForm, useFieldArray, Controller } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
-import * as z from 'zod'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from '@/components/ui/card'
-import { useToast } from '@/hooks/use-toast'
-
-const itemSchema = z.object({
-  Id: z.string(),
-  itemName: z.string().min(1, 'Item name is required'),
-  quantity: z.number().min(1, 'Quantity must be greater than 0'),
-  price: z.number().min(0.01, 'Price must be greater than 0'),
-  amount: z.number(),
-})
-
-const billSundrySchema = z.object({
-  Id: z.string(),
-  billSundryName: z.string().min(1, 'Bill sundry name is required'),
-  amount: z.string().refine((val) => !isNaN(parseFloat(val)), {
-    message: 'Amount must be a valid number',
-  }),
-})
-
-const invoiceSchema = z.object({
-  Id: z.string(),
-  Date: z.string().refine((val) => !isNaN(Date.parse(val)), {
-    message: 'Invalid date format',
-  }),
-  InvoiceNumber: z.number().int().positive(),
-  CustomerName: z.string().min(1, 'Customer name is required'),
-  BillingAddress: z.string().min(1, 'Billing address is required'),
-  ShippingAddress: z.string().min(1, 'Shipping address is required'),
-  GSTIN: z.string().min(1, 'GSTIN is required'),
-  Items: z.array(itemSchema).min(1, 'At least one item is required'),
-  BillSundrys: z.array(billSundrySchema),
-  TotalAmount: z.number(),
-})
-
-type InvoiceFormData = z.infer<typeof invoiceSchema>
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
+import { ApiResponse } from "@/types/ApiResponse";
 
 export default function InvoiceDetail({ params }: { params: { id: string } }) {
-  const router = useRouter()
-  const [isCreateMode, setIsCreateMode] = useState(params.id === 'new')
-    const {toast} = useToast();
-  const { register, control, handleSubmit, setValue, watch, formState: { errors } } = useForm<InvoiceFormData>({
-    resolver: zodResolver(invoiceSchema),
-    defaultValues: {
-      Id: '',
-      Date: new Date().toISOString().split('T')[0],
-      InvoiceNumber: 0,
-      CustomerName: '',
-      BillingAddress: '',
-      ShippingAddress: '',
-      GSTIN: '',
-      Items: [{ Id: '1', itemName: '', quantity: 1, price: 0, amount: 0 }],
-      BillSundrys: [],
-      TotalAmount: 0,
-    },
-  })
+  const router = useRouter();
+  const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const { toast } = useToast();
 
-  const { fields: itemFields, append: appendItem, remove: removeItem } = useFieldArray({
-    control,
-    name: 'Items',
-  })
+//   const [isEditing, setIsEditing] = useState(false);
 
-  const { fields: billSundryFields, append: appendBillSundry, remove: removeBillSundry } = useFieldArray({
-    control,
-    name: 'BillSundrys',
-  })
-
-  const watchItems = watch('Items')
-  const watchBillSundrys = watch('BillSundrys')
+//   const handleEdit = () => {
+//     setIsEditing(true);
+//   };
 
   useEffect(() => {
-    const totalItemsAmount = watchItems.reduce((sum, item) => sum + (item.quantity * item.price), 0)
-    const totalBillSundrysAmount = watchBillSundrys.reduce((sum, billSundry) => sum + parseFloat(billSundry.amount || '0'), 0)
-    setValue('TotalAmount', totalItemsAmount + totalBillSundrysAmount)
-  }, [watchItems, watchBillSundrys, setValue])
-
-  const onSubmit = (data: InvoiceFormData) => {
-    console.log(data)
-    toast({
-      title: 'Invoice Saved',
-      description: `Invoice ${data.InvoiceNumber} has been saved successfully.`,
-    })
-    fetch('/api/invoice', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-    })
-        .then((response) => {
-            if (!response.ok) {
-                throw new Error('Network response was not ok');
-            }
-            return response.json();
-        })
-        .then((responseData) => {
-            console.log('Success:', responseData);
-        })
-        .catch((error) => {
-            console.error('Error:', error);
-            toast({
-                title: 'Error',
-                description: 'There was an error saving the invoice.',
-                variant:"destructive"
-            });
+    const fetchInvoice = async () => {
+      setIsLoading(true);
+      try {
+        // console.log(":::::", params.id)
+        const response = await fetch(`/api/invoice?id=${params.id}`);
+        // console.log(await response.json())
+        // if (response.ok) {
+        const fetchedData: ApiResponse<Invoice> = await response.json();
+        //   console.log(":::::", fetchedData)
+        setInvoice(fetchedData.data);
+        // } else {
+        //   throw new Error('Failed to fetch invoice')
+        // }
+      } catch (error) {
+        console.log(":::::", error);
+        toast({
+          title: "Error",
+          description: "Failed to fetch invoice. Please try again.",
+          variant: "destructive",
         });
-    router.push('/invoices')
-  }
+        // router.push('/invoices')
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchInvoice();
+  }, [params.id, router]);
 
-  const handleDelete = () => {
-    // Implement delete logic here
-    toast({
-      title: 'Invoice Deleted',
-      description: `Invoice has been deleted successfully.`,
-    })
-    router.push('/invoices')
-  }
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setInvoice((prev) => (prev ? { ...prev, [name]: value } : null));
+  };
+
+  const handleItemChange = (
+    index: number,
+    field: string,
+    value: string | number
+  ) => {
+    console.log(":::::", index, field, value);
+    let quantity = invoice ? Number(invoice.invoiceItems[index].quantity) : 0;
+    let price = invoice ? Number(invoice.invoiceItems[index].price) : 0;
+    // if (field === "quantity") {
+    //   quantity = Number(value);
+    //   // console.log(":::::", value)
+    // } else if (field === "price") {
+    //   price = Number(value);
+    // }
+    setInvoice((prev) => {
+      if (!prev) return null;
+      console.log(":::::", prev);
+      console.log(
+        prev.invoiceItems[index].quantity * prev.invoiceItems[index].price
+      );
+      const updatedItem = {
+        ...prev.invoiceItems[index],
+        [field]: value,
+        amount:
+          field === "quantity" ? Number(value) * price : quantity * Number(value),
+      };
+      const updatedItems = prev.invoiceItems.map((item, i) =>
+        i === index ? updatedItem : item
+      );
+      const updatedTotalAmount = updatedItems.reduce(
+        (total, item) => total + item.quantity * item.price,
+        0
+      );
+      return {
+        ...prev,
+        invoiceItems: updatedItems,
+        totalAmount: updatedTotalAmount,
+      };
+    });
+  };
+
+  const handleBillSundryChange = (
+    index: number,
+    field: string,
+    value: string
+  ) => {
+    setInvoice((prev) => {
+      if (!prev) return null;
+      //   const updatedBillSundry = { ...prev.billSundries[index], [field]: value };
+      //   const updatedTotalAmount = prev.invoiceItems.reduce(
+      //     (total, item) => total + item.quantity * item.price,
+      //     0
+      //   ) + prev.billSundries.reduce(
+      //     (total, sundry) => total + parseFloat(sundry.amount.toString()),
+      //     0
+      //   );
+      const updatedBillSundrys = prev.billSundries.map((sundry, i) =>
+        i === index ? { ...sundry, [field]: value } : sundry
+      );
+      return { ...prev, billSundries: updatedBillSundrys };
+    });
+  };
+
+  const addItem = () => {
+    setInvoice((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        items: [
+          ...prev.invoiceItems,
+          { id: Date.now().toString(), itemName: "", quantity: 1, price: 0 },
+        ],
+      };
+    });
+  };
+
+  const addBillSundry = () => {
+    setInvoice((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        billSundrys: [
+          ...prev.billSundries,
+          { id: Date.now().toString(), billSundryName: "", amount: "0" },
+        ],
+      };
+    });
+  };
+
+  const removeItem = (index: number) => {
+    setInvoice((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        items: prev.invoiceItems.filter((_, i) => i !== index),
+      };
+    });
+  };
+
+  const removeBillSundry = (index: number) => {
+    setInvoice((prev) => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        billSundrys: prev.billSundries.filter((_, i) => i !== index),
+      };
+    });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!invoice) return;
+
+    try {
+      const response = await fetch(`/api/invoice`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(invoice),
+      });
+      console.log(":::::", await response.json());
+      //   if (response.ok) {
+      toast({
+        title: "Invoice Updated",
+        description: "Your invoice has been updated successfully.",
+      });
+      //   router.push("/invoices");
+      //   } else {
+      //     throw new Error('Failed to update invoice')
+      //   }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to update invoice. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!invoice) return;
+
+    try {
+      const response = await fetch(`/api/invoice/${invoice.id}`, {
+        method: "DELETE",
+      });
+      if (response.ok) {
+        toast({
+          title: "Invoice Deleted",
+          description: "Your invoice has been deleted successfully.",
+        });
+        router.push("/invoices");
+      } else {
+        throw new Error("Failed to delete invoice");
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to delete invoice. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  if (isLoading) return <div>Loading...</div>;
+  if (!invoice) return <div>Invoice not found</div>;
 
   return (
     <div className="container mx-auto py-10">
-    <form onSubmit={handleSubmit(onSubmit)}>
-      <Card className="w-full max-w-4xl mx-auto">
-        <CardHeader>
-          <CardTitle>{isCreateMode ? 'Create Invoice' : 'Update Invoice'}</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <form onSubmit={handleSubmit}>
+        <Card className="w-full max-w-4xl mx-auto">
+          <CardHeader>
+            <CardTitle>Edit Invoice</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="date">Date</Label>
+                <Input
+                  id="date"
+                  name="date"
+                  type="date"
+                  value={invoice.date}
+                  onChange={handleInputChange}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="invoiceNumber">Invoice Number</Label>
+                <Input
+                  id="invoiceNumber"
+                  name="invoiceNumber"
+                  value={invoice.invoiceNumber}
+                  onChange={handleInputChange}
+                  readOnly
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="customerName">Customer Name</Label>
+                <Input
+                  id="customerName"
+                  name="customerName"
+                  value={invoice.customerName}
+                  onChange={handleInputChange}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="gstin">GSTIN</Label>
+                <Input
+                  id="gstin"
+                  name="gstin"
+                  value={invoice.gstin}
+                  onChange={handleInputChange}
+                />
+              </div>
+            </div>
             <div className="space-y-2">
-              <Label htmlFor="Date">Date</Label>
+              <Label htmlFor="billingAddress">Billing Address</Label>
               <Input
-                id="Date"
-                type="date"
-                {...register('Date')}
-                min={new Date().toISOString().split('T')[0]}
+                id="billingAddress"
+                name="billingAddress"
+                value={invoice.billingAddress}
+                onChange={handleInputChange}
               />
-              {errors.Date && <p className="text-sm text-red-500">{errors.Date.message}</p>}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="InvoiceNumber">Invoice Number</Label>
-              <Input id="InvoiceNumber" type="number" {...register('InvoiceNumber', { valueAsNumber: true })} />
+              <Label htmlFor="shippingAddress">Shipping Address</Label>
+              <Input
+                id="shippingAddress"
+                name="shippingAddress"
+                value={invoice.shippingAddress}
+                onChange={handleInputChange}
+              />
+            </div>
+            <div className="space-y-4">
+              <Label>Items</Label>
+              {invoice.invoiceItems.map((item, index) => (
+                <div key={item.id} className="grid grid-cols-5 gap-2 items-end">
+                  <div className="col-span-2">
+                    <Label htmlFor={`itemName-${index}`}>Item Name</Label>
+                    <Input
+                      id={`itemName-${index}`}
+                      value={item.itemName}
+                      onChange={(e) =>
+                        handleItemChange(index, "itemName", e.target.value)
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`quantity-${index}`}>Quantity</Label>
+                    <Input
+                      id={`quantity-${index}`}
+                      type="number"
+                      value={item.quantity}
+                      onChange={(e) =>
+                        handleItemChange(
+                          index,
+                          "quantity",
+                          parseInt(e.target.value)
+                        )
+                      }
+                      min="1"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`price-${index}`}>Price</Label>
+                    <Input
+                      id={`price-${index}`}
+                      type="number"
+                      value={item.price}
+                      onChange={(e) =>
+                        handleItemChange(
+                          index,
+                          "price",
+                          parseFloat(e.target.value)
+                        )
+                      }
+                      min="0"
+                      step="0.01"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => removeItem(index)}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ))}
+              <Button type="button" onClick={addItem}>
+                Add Item
+              </Button>
+            </div>
+            <div className="space-y-4">
+              <Label>Bill Sundrys</Label>
+              {invoice.billSundries.map((sundry, index) => (
+                <div
+                  key={sundry.id}
+                  className="grid grid-cols-3 gap-2 items-end"
+                >
+                  <div>
+                    <Label htmlFor={`billSundryName-${index}`}>Name</Label>
+                    <Input
+                      id={`billSundryName-${index}`}
+                      value={sundry.billSundryName}
+                      onChange={(e) =>
+                        handleBillSundryChange(
+                          index,
+                          "billSundryName",
+                          e.target.value
+                        )
+                      }
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor={`amount-${index}`}>Amount</Label>
+                    <Input
+                      id={`amount-${index}`}
+                      type="number"
+                      value={sundry.amount}
+                      onChange={(e) =>
+                        handleBillSundryChange(index, "amount", e.target.value)
+                      }
+                      step="0.01"
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => removeBillSundry(index)}
+                  >
+                    Remove
+                  </Button>
+                </div>
+              ))}
+              <Button type="button" onClick={addBillSundry}>
+                Add Bill Sundry
+              </Button>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="CustomerName">Customer Name</Label>
-              <Input id="CustomerName" {...register('CustomerName')} />
-              {errors.CustomerName && <p className="text-sm text-red-500">{errors.CustomerName.message}</p>}
+              <Label htmlFor="totalAmount">Total Amount</Label>
+              <Input
+                id="totalAmount"
+                name="totalAmount"
+                value={invoice.totalAmount}
+                readOnly
+              />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="GSTIN">GSTIN</Label>
-              <Input id="GSTIN" {...register('GSTIN')} />
-              {errors.GSTIN && <p className="text-sm text-red-500">{errors.GSTIN.message}</p>}
+          </CardContent>
+          <CardFooter className="flex justify-between">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => router.push("/invoices")}
+            >
+              Cancel
+            </Button>
+            <div>
+              <Button
+                type="button"
+                variant="destructive"
+                onClick={handleDelete}
+                className="mr-2"
+              >
+                Delete
+              </Button>
+              <Button type="submit">Update Invoice</Button>
             </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="BillingAddress">Billing Address</Label>
-              <Input id="BillingAddress" {...register('BillingAddress')} />
-              {errors.BillingAddress && <p className="text-sm text-red-500">{errors.BillingAddress.message}</p>}
-            </div>
-            <div className="space-y-2 md:col-span-2">
-              <Label htmlFor="ShippingAddress">Shipping Address</Label>
-              <Input id="ShippingAddress" {...register('ShippingAddress')} />
-              {errors.ShippingAddress && <p className="text-sm text-red-500">{errors.ShippingAddress.message}</p>}
-            </div>
-          </div>
-          <div className="space-y-4 mt-6">
-            <Label>Items</Label>
-            {itemFields.map((field, index) => (
-              <div key={field.id} className="grid grid-cols-5 gap-2 items-center">
-                <Input {...register(`Items.${index}.itemName`)} placeholder="Item Name" />
-                <Input {...register(`Items.${index}.quantity`, { valueAsNumber: true })} placeholder="Quantity" type="number" min="1" />
-                <Input {...register(`Items.${index}.price`, { valueAsNumber: true })} placeholder="Price" type="number" min="0.01" step="0.01" />
-                <Input value={watchItems[index]?.quantity * watchItems[index]?.price || 0} readOnly placeholder="Amount" />
-                <Button type="button" variant="destructive" onClick={() => removeItem(index)}>Remove</Button>
-              </div>
-            ))}
-            <Button type="button" onClick={() => appendItem({ Id: '', itemName: '', quantity: 1, price: 0, amount: 0 })}>Add Item</Button>
-          </div>
-          <div className="space-y-4 mt-6">
-            <Label>Bill Sundrys</Label>
-            {billSundryFields.map((field, index) => (
-              <div key={field.id} className="grid grid-cols-3 gap-2 items-center">
-                <Input {...register(`BillSundrys.${index}.billSundryName`)} placeholder="Bill Sundry Name" />
-                <Input {...register(`BillSundrys.${index}.amount`)} placeholder="Amount" type="number" step="0.01" />
-                <Button type="button" variant="destructive" onClick={() => removeBillSundry(index)}>Remove</Button>
-              </div>
-            ))}
-            <Button type="button" onClick={() => appendBillSundry({ Id: '', billSundryName: '', amount: '0' })}>Add Bill Sundry</Button>
-          </div>
-          <div className="mt-6 space-y-2">
-            <Label htmlFor="TotalAmount">Total Amount</Label>
-            <Input id="TotalAmount" {...register('TotalAmount', { valueAsNumber: true })} readOnly className="font-bold" />
-          </div>
-        </CardContent>
-        <CardFooter className="flex justify-between">
-          <Button type="button" variant="outline" onClick={() => router.push('/invoices')}>Cancel</Button>
-          <div>
-            {!isCreateMode && (
-              <Button type="button" variant="destructive" onClick={handleDelete} className="mr-2">Delete</Button>
-            )}
-            <Button type="submit">Save</Button>
-          </div>
-        </CardFooter>
-      </Card>
-    </form>
+          </CardFooter>
+        </Card>
+      </form>
     </div>
-  )
+  );
 }

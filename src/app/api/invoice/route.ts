@@ -4,6 +4,7 @@
 // const prisma = new PrismaClient();
 
 const validateInvoiceItem = (item: InvoiceItem) => {
+  console.log("item", item);
   if (item.quantity <= 0 || item.price <= 0 || item.amount <= 0) {
     throw new Error("Quantity, Price, and Amount must be greater than zero.");
   }
@@ -38,7 +39,32 @@ import prisma from "@/lib/dbConnect";
 import { NextApiRequest } from "next";
 import { NextRequest, NextResponse } from "next/server";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
+  const { searchParams } = new URL(req.url);
+  const id = searchParams.get("id");
+
+  if (id) {
+    const invoice = await prisma.invoice.findUnique({
+      where: { id },
+      include: {
+        invoiceItems: true,
+        billSundries: true,
+      },
+    });
+
+    if (!invoice) {
+      return NextResponse.json(
+        { success: false, message: "Invoice not found" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Fetched successfully",
+      data: invoice,
+    });
+  }
   try {
     const invoices = await prisma.invoice.findMany({
       include: {
@@ -64,7 +90,7 @@ export async function GET() {
 export async function POST(req: NextRequest) {
   try {
     const invoice = await req.json();
-    
+
     console.log("invoice", invoice);
     validateInvoice(invoice);
 
@@ -107,7 +133,8 @@ export async function POST(req: NextRequest) {
 
 export async function DELETE(req: NextRequest) {
   try {
-    const { id } = await req.json();
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get("id") || "";
 
     await prisma.invoice.delete({
       where: { id },
@@ -129,9 +156,13 @@ export async function DELETE(req: NextRequest) {
 }
 
 export async function PUT(req: NextRequest) {
+  console.log("PUT");
   try {
-    const { id, ...invoice } = await req.json();
+    const invoice = await req.json();
+    console.log("invoice", invoice);
+    const id = invoice.id;
     validateInvoice(invoice);
+    console.log("invoice", invoice);
 
     const updatedInvoice = await prisma.invoice.update({
       where: { id },
@@ -157,6 +188,7 @@ export async function PUT(req: NextRequest) {
       { status: 200 }
     );
   } catch (error) {
+    console.error(error);
     return NextResponse.json(
       { success: false, message: "failed to update invoice" },
       { status: 400 }
