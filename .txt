@@ -1,0 +1,5 @@
+while writing post, it's stored in local storage. It's saved as draft when the user closes the tab or clicks back, etc. To save the post in the database, you can add an event listener to the window's `beforeunload` event. Here's an example:
+
+window.addEventListener('beforeunload', function() {
+    // Code to save the post in the database
+});

@@ -1,0 +1,39 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Invoice {
+  id              String        @id @default(uuid())
+  date            String
+  invoiceNumber   Int
+  customerName    String
+  billingAddress  String
+  shippingAddress String
+  gstin           String
+  totalAmount     Decimal
+  invoiceItems    InvoiceItem[]
+  billSundries    BillSundry[]
+}
+
+model InvoiceItem {
+  id        String   @id @default(uuid())
+  itemName  String
+  quantity  Decimal
+  price     Decimal
+  amount    Decimal
+  invoice   Invoice  @relation(fields: [invoiceId], references: [id])
+  invoiceId String
+}
+
+model BillSundry {
+  id             String   @id @default(uuid())
+  billSundryName String
+  amount         Decimal
+  invoice        Invoice  @relation(fields: [invoiceId], references: [id])
+  invoiceId      String
+}
